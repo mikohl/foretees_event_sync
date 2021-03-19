@@ -1,0 +1,72 @@
+<?php
+
+/**
+ * @file
+ * Feature to sync calendar with ForeTees events API.
+ */
+
+/**
+ * Implements hook_menu().
+ */
+function foretees_event_sync_menu() {
+  $items = [];
+
+  $items['admin/config/services/foretees/event-sync'] = [
+    'title' => 'ForeTees Event Sync',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('foretees_event_sync_settings_form'),
+    'access arguments' => array('administer Foretees'),
+    'file' => 'foretees_event_sync.admin.inc',
+  ];
+
+  return $items;
+}
+
+/**
+ * Implements hook_cron().
+ */
+function foretees_event_sync_cron() {
+  $sync_active = variable_get('foretees_sync_active', 0);
+  if ($sync_active !== '0') {
+    module_load_include('inc', 'foretees_event_sync', 'foretees_event_sync.common');
+    foretees_event_sync_load_queue();
+  }
+}
+
+/**
+ * Implements hook_cron_queue_info().
+ */
+function foretees_event_sync_cron_queue_info() {
+  $queues['foretees_sync'] = [
+    'worker callback' => 'foretees_event_sync_cron_queue_worker_caller',
+    'time' => 180,
+  ];
+  return $queues;
+}
+
+/**
+ * Implements hook_node_alter().
+ */
+function foretees_event_sync_form_events_node_form_alter(&$form, &$form_state, $form_id) {
+  $form['foretees_event_id']['#access'] = FALSE;
+}
+
+/**
+ * Implements hook_node_delete().
+ */
+function foretees_event_sync_node_delete($node) {
+  if ($node->type == 'events') {
+    $nid = $node->nid;
+    $deleted_record = db_delete('foretees_events')
+      ->condition('nid', $nid)
+      ->execute();
+  };
+}
+
+/**
+ * Function to call worker in external file.
+ */
+function foretees_event_sync_cron_queue_worker_caller($item) {
+  module_load_include('inc', 'foretees_event_sync', 'foretees_event_sync.common');
+  foretees_event_sync_cron_queue_worker($item);
+}

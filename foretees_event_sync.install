@@ -1,0 +1,153 @@
+<?php
+
+/**
+ * @file
+ * Contains install and update functions for Arcis ForeTees Event Sync.
+ */
+
+/**
+ * Implements hook_schema().
+ */
+function foretees_event_sync_schema() {
+  $schema['foretees_events'] = [
+    'description' => 'Table match synced in event items with nodes',
+    'fields' => [
+      'event_id' => [
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'description' => 'eventId value from the foretees API',
+      ],
+      'nid' => [
+        'type' => 'int',
+        'not null' => TRUE,
+        'unsigned' => TRUE,
+        'description' => '{node} id',
+      ],
+      'activity_name' => [
+        'description' => 'activityName value from foretees API',
+        'type' => 'varchar',
+        'length' => 255,
+        'default' => '',
+      ],
+    ],
+    'unique keys' => [
+      'nid' => ['nid'],
+    ],
+    'primary key' => ['event_id'],
+  ];
+  return $schema;
+}
+
+/**
+ * Implements hook_install().
+ */
+function foretees_event_sync_install() {
+  $field_name = 'foretees_event_id';
+  if (!field_info_field($field_name)) {
+    $field_event_id = [
+      'field_name' => $field_name,
+      'cardinality' => 1,
+      'type' => 'number_integer',
+    ];
+    field_create_field($field_event_id);
+    $instance = [
+      'entity_type' => 'node',
+      'field_name' => $field_name,
+      'bundle' => 'events',
+    ];
+    field_create_instance($instance);
+  }
+
+  $field_name = 'foretees_activity_id';
+  if (!field_info_field($field_name)) {
+    $field_event_id = [
+      'field_name' => $field_name,
+      'cardinality' => 1,
+      'type' => 'text',
+    ];
+    field_create_field($field_event_id);
+    $instance = [
+      'entity_type' => 'taxonomy_term',
+      'label' => t('Activity ID from ForeTees'),
+      'field_name' => $field_name,
+      'bundle' => 'event_category',
+      'widget' => array(
+        'type' => 'text_textfield',
+      ),
+    ];
+    field_create_instance($instance);
+  }
+}
+
+/**
+ * Add new field to the event_category taxonomy to hold the ForeTees activityId.
+ *
+ * Also disable rules_redirect_to_login rule which causes Registry issues.
+ */
+function foretees_event_sync_update_7000() {
+  /* Kill this rule that only throws errors */
+  $rules_config = rules_config_load('rules_redirect_to_login');
+  $rules_config->active = FALSE;
+  $rules_config->save();
+
+  $field_name = 'foretees_activity_id';
+  if (!field_info_field($field_name)) {
+    $field_event_id = [
+      'field_name' => $field_name,
+      'cardinality' => 1,
+      'type' => 'text',
+    ];
+    field_create_field($field_event_id);
+    $instance = [
+      'entity_type' => 'taxonomy_term',
+      'label' => t('Activity ID from ForeTees'),
+      'field_name' => $field_name,
+      'bundle' => 'event_category',
+      'widget' => array(
+        'type' => 'text_textfield',
+      ),
+    ];
+    field_create_instance($instance);
+  }
+  return t("ForeTees Activity ID field has been added to Event Category.");
+
+  /* In case of Error */
+  throw new DrupalUpdateException('Unable to add field.');
+}
+
+/**
+ * Update the filtered_html text format to add allowed tags.
+ */
+function foretees_event_sync_update_7001() {
+  // Code from https://www.drupal.org/node/1304930.
+  $format = filter_format_load('filtered_html');
+
+  if (empty($format->filters)) {
+    // Get the filters used by this format.
+    $filters = filter_list_format($format->format);
+    // Build the $format->filters array...
+    $format->filters = array();
+    foreach ($filters as $name => $filter) {
+      foreach ($filter as $k => $v) {
+        $format->filters[$name][$k] = $v;
+      }
+    }
+  }
+
+  // Get list of current allowed html tags.
+  $current_allowed_html = &$format->filters['filter_html']['settings']['allowed_html'];
+
+  // List of tags we want to add to the current tags.
+  $updated_allowed_html = explode(' ', '<p> <span> <div> <table> <thead> <tbody> <tr> <th> <td> <br> <hr> <h2> <h3> <h4> <h5> <h6>');
+
+  // Check each tag to see if it's already there. Add it if not.
+  foreach ($updated_allowed_html as $key => $tag) {
+    if (strpos($current_allowed_html, $tag) == FALSE) {
+      $current_allowed_html .= ' ' . $tag;
+    };
+  };
+
+  // Save the updated format.
+  filter_format_save($format);
+  return t("Updated filtered_html filter to include additional html tags.");
+}

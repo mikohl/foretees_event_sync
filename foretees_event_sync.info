@@ -1,0 +1,6 @@
+name = ForeTees Event Sync
+description = Sync events from ForeTees API and create calendar events.
+core = 7.x
+package = Arcis
+
+dependencies[] = foretees_sso
